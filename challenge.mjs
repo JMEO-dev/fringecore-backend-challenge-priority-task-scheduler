@@ -1,15 +1,76 @@
 const TASK_REQUIRE_TIME_MS = 5_000;
-// Modify the function below to process each task for 5 secs
-/**
- * Processes an task and executes a callback to mark the task as done.
- *
- * @param {Object} task - The task object containing details about the task.
- * @param {string} task.id - Unique identifier for the task.
- * @param {number} task.priority - Priority level of the task (higher is more urgent).
- * @param {string} task.description - A description of the task. Can be empty string.
- * @param {function(string | undefined):void} task.setTaskDone - Callback function to mark the task as complete.
- * It receives an optional message string.
- */
-export const processTask = (task) => {
-  task.setTaskDone("Not implemented");
-};
+// Task queue and current task
+const taskQueue = [];
+let currentTask = null;
+
+// Function to process a task
+export function processTask(task) {
+  console.log(
+    `Received task ${task.id} with priority ${task.priority}`
+  );
+
+  // Add the task to the queue
+  taskQueue.push(task);
+
+  // Sort the queue based on priority (higher priority first)
+  taskQueue.sort((a, b) => b.priority - a.priority);
+
+  // Check if we need to interrupt the current task
+  if (currentTask && task.priority > currentTask.priority) {
+    console.log(
+      `Pausing task ${currentTask.id} for higher-priority task ${task.id}`
+    );
+    // Put the current task back into the queue
+    currentTask.remainingTime -=
+      Math.min(
+        TASK_REQUIRE_TIME_MS / 1000,
+        currentTask.remainingTime
+      ) - currentTask.startedTime;
+    taskQueue.push(currentTask);
+    currentTask = null;
+  }
+
+  // Try to process the next task
+  processNextTask();
+}
+
+// Function to process the next task in the queue
+function processNextTask() {
+  if (currentTask || taskQueue.length === 0) {
+    return; // Exit if there's an ongoing task or no tasks in the queue
+  }
+
+  // Fetch the next task
+  const nextTask = taskQueue.shift();
+  currentTask = nextTask;
+
+  console.log(
+    `Processing task ${nextTask.id} with priority ${nextTask.priority}`
+  );
+
+  // Simulate task processing for the defined time
+  const processingTime = Math.min(
+    nextTask.remainingTime || TASK_REQUIRE_TIME_MS / 1000,
+    TASK_REQUIRE_TIME_MS / 1000
+  );
+  nextTask.startedTime = processingTime;
+
+  setTimeout(() => {
+    nextTask.remainingTime =
+      (nextTask.remainingTime || TASK_REQUIRE_TIME_MS / 1000) -
+      processingTime;
+
+    if (nextTask.remainingTime > 0) {
+      console.log(
+        `Task ${nextTask.id} paused with ${nextTask.remainingTime} seconds left`
+      );
+      taskQueue.push(nextTask); // Re-add the paused task to the queue
+    } else {
+      console.log(`Task ${nextTask.id} completed`);
+      nextTask.setTaskDone && nextTask.setTaskDone();
+    }
+
+    currentTask = null;
+    processNextTask(); // Process the next task
+  }, processingTime * 1000);
+}
